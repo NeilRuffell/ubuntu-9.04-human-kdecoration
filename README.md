@@ -18,9 +18,10 @@ The implementation is based on the original Ubuntu 9.04 Human theme definition f
 
 The decoration builds and links as a KDecoration3 plugin.
 
-The current implementation is a faithful native translation of the Jaunty Human drawing operations, but two areas are still being refined for pixel-level matching:
+The current implementation is a faithful native translation of the Jaunty Human drawing operations. The generic Qt rounded-rectangle clipping has been replaced with the original Human-style stepped corner silhouette and the Metacity corner outline/highlight operations.
 
-- exact hand-drawn Metacity corner pixels
+The main remaining pixel-level refinement is:
+
 - Qt text metrics versus the original Pango/Metacity metrics
 
 ## Original Ubuntu 9.04 source
