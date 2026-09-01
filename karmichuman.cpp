@@ -12,8 +12,8 @@
 #include <QImage>
 #include <QLinearGradient>
 #include <QPainter>
-#include <QPainterPath>
 #include <QPixmap>
+#include <QRegion>
 
 #include <algorithm>
 #include <cmath>
@@ -160,6 +160,111 @@ static void pixelLine(QPainter *p,
 {
     p->setPen(QPen(c, 1));
     p->drawLine(x1, y1, x2, y2);
+}
+
+/*
+ * Metacity's rounded Human frame is a pixel-stepped mask, not a
+ * continuously antialiased Qt rounded rectangle.
+ *
+ * The top-left silhouette is:
+ *   y=0: starts at x=5
+ *   y=1: starts at x=3
+ *   y=2: starts at x=2
+ *   y=3..4: starts at x=1
+ *   y>=5: full width
+ *
+ * The other corners mirror that shape.
+ */
+static QRegion humanWindowRegion(int w, int h)
+{
+    if (w <= 10 || h <= 10)
+        return QRegion(0, 0, w, h);
+
+    QRegion region;
+
+    region += QRect(5, 0, w - 10, 1);
+    region += QRect(3, 1, w - 6, 1);
+    region += QRect(2, 2, w - 4, 1);
+    region += QRect(1, 3, w - 2, 2);
+    region += QRect(0, 5, w, h - 10);
+    region += QRect(1, h - 5, w - 2, 2);
+    region += QRect(2, h - 3, w - 4, 1);
+    region += QRect(3, h - 2, w - 6, 1);
+    region += QRect(5, h - 1, w - 10, 1);
+
+    return region;
+}
+
+static void paintTopCornerDetails(QPainter *p, int w, bool active)
+{
+    if (active) {
+        /* corners_outline_selected_top */
+        pixelLine(p, shade(SelectedBg, 0.40), 0, 6, 1, 2);
+        pixelLine(p, shade(SelectedBg, 0.50), 1, 3, 1, 4);
+        pixelLine(p, shade(SelectedBg, 0.55), 1, 3, 2, 2);
+        pixelLine(p, shade(SelectedBg, 0.55), 3, 1, 4, 1);
+        pixelLine(p, shade(SelectedBg, 0.60), 3, 1, 1, 1);
+
+        pixelLine(p, shade(SelectedBg, 0.40), w - 1, 6, w - 1, 2);
+        pixelLine(p, shade(SelectedBg, 0.50), w - 2, 3, w - 2, 4);
+        pixelLine(p, shade(SelectedBg, 0.55), w - 2, 3, w - 3, 2);
+        pixelLine(p, shade(SelectedBg, 0.55), w - 4, 1, w - 5, 1);
+        pixelLine(p, shade(SelectedBg, 0.60), w - 4, 1, w - 1, 1);
+    } else {
+        /* corners_outline_top */
+        pixelLine(p, shade(NormalBg, 0.35), 1, 3, 1, 4);
+        pixelLine(p, shade(NormalBg, 0.40), 2, 2, 2, 2);
+        pixelLine(p, shade(NormalBg, 0.45), 3, 1, 4, 1);
+
+        pixelLine(p, shade(NormalBg, 0.35), w - 2, 3, w - 2, 4);
+        pixelLine(p, shade(NormalBg, 0.40), w - 3, 2, w - 3, 2);
+        pixelLine(p, shade(NormalBg, 0.45), w - 4, 1, w - 5, 1);
+    }
+
+    /* corners_hilight -- used by both focused and unfocused round bevels */
+    const QColor selectedHi = shade(SelectedBg, 2.0);
+
+    p->fillRect(QRectF(2, 3, 1, 2), withAlpha(selectedHi, 0.30));
+    p->fillRect(QRectF(3, 3, 1, 1), withAlpha(selectedHi, 0.20));
+    p->fillRect(QRectF(3, 2, 2, 1), withAlpha(selectedHi, 0.30));
+    p->fillRect(QRectF(3, 2, 1, 1), withAlpha(Qt::black, 0.07));
+    p->fillRect(QRectF(2, 5, 1, 1), withAlpha(selectedHi, 0.20));
+    p->fillRect(QRectF(2, 6, 1, 1), withAlpha(selectedHi, 0.05));
+    p->fillRect(QRectF(4, 3, 1, 1), withAlpha(selectedHi, 0.10));
+    p->fillRect(QRectF(3, 4, 1, 1), withAlpha(selectedHi, 0.10));
+    p->fillRect(QRectF(5, 2, 1, 1), withAlpha(selectedHi, 0.20));
+
+    p->fillRect(QRectF(w - 4, 3, 1, 1), withAlpha(selectedHi, 0.15));
+    p->fillRect(QRectF(w - 4, 2, 1, 1), withAlpha(Qt::black, 0.05));
+    p->fillRect(QRectF(w - 5, 2, 1, 1), withAlpha(selectedHi, 0.20));
+    p->fillRect(QRectF(w - 6, 2, 1, 1), withAlpha(selectedHi, 0.10));
+    p->fillRect(QRectF(w - 7, 2, 1, 1), withAlpha(selectedHi, 0.05));
+    p->fillRect(QRectF(w - 3, 3, 1, 1), withAlpha(Qt::black, 0.10));
+    p->fillRect(QRectF(w - 3, 4, 1, 2), withAlpha(Qt::black, 0.04));
+}
+
+static void paintBottomCornerDetails(QPainter *p, int w, int h)
+{
+    /* corners_outline_bottom */
+    pixelLine(p, shade(NormalBg, 0.95), 4, h - 3, 1, h - 3);
+    pixelLine(p, shade(NormalBg, 0.93), 3, h - 3, 1, h - 3);
+    pixelLine(p, shade(NormalBg, 1.05), 2, h - 5, 1, h - 6);
+    pixelLine(p, shade(NormalBg, 1.03), 2, h - 4, 1, h - 5);
+    pixelLine(p, shade(NormalBg, 0.85), 6, h - 2, 1, h - 2);
+    pixelLine(p, shade(NormalBg, 0.83), 5, h - 2, 1, h - 3);
+
+    pixelLine(p, shade(NormalBg, 0.28), 1, h - 4, 1, h - 5);
+    pixelLine(p, shade(NormalBg, 0.30), 2, h - 3, 2, h - 3);
+    pixelLine(p, shade(NormalBg, 0.28), 2, h - 2, 4, h - 2);
+
+    pixelLine(p, shade(NormalBg, 0.90), w - 3, h - 4, w - 2, h - 4);
+    pixelLine(p, shade(NormalBg, 0.90), w - 3, h - 5, w - 2, h - 5);
+    pixelLine(p, shade(NormalBg, 0.90), w - 4, h - 3, w - 5, h - 3);
+    pixelLine(p, shade(NormalBg, 0.97), w - 4, h - 4, w - 4, h - 4);
+
+    pixelLine(p, shade(NormalBg, 0.28), w - 2, h - 4, w - 2, h - 5);
+    pixelLine(p, shade(NormalBg, 0.30), w - 3, h - 3, w - 3, h - 3);
+    pixelLine(p, shade(NormalBg, 0.28), w - 4, h - 2, w - 5, h - 2);
 }
 
 class Decoration;
@@ -586,7 +691,7 @@ void Decoration::updateLayout()
     setBorderRadius(
         maximized
             ? KDecoration3::BorderRadius()
-            : KDecoration3::BorderRadius(3.0));
+            : KDecoration3::BorderRadius(6.0));
 
     setTitleBar(QRectF(
         0,
@@ -690,6 +795,8 @@ void Decoration::paintFrame(QPainter *p)
     p->setPen(QPen(shade(NormalBg, 0.25), 1));
     p->setBrush(Qt::NoBrush);
     p->drawRect(QRectF(0, 0, w - 1, h - 1));
+
+    paintBottomCornerDetails(p, w, h);
 }
 
 void Decoration::paintTitleBar(QPainter *p)
@@ -862,6 +969,9 @@ void Decoration::paintTitleBar(QPainter *p)
             w - 1, 1);
     }
 
+    if (!maximized)
+        paintTopCornerDetails(p, w, active);
+
     if (maximized) {
         pixelLine(
             p,
@@ -938,13 +1048,12 @@ void Decoration::paint(QPainter *painter,
         false);
 
     if (!window()->isMaximized()) {
-        QPainterPath path;
-        path.addRoundedRect(
-            rect(),
-            3.0,
-            3.0);
+        const int w = qRound(rect().width());
+        const int h = qRound(rect().height());
 
-        painter->setClipPath(path);
+        painter->setClipRegion(
+            humanWindowRegion(w, h),
+            Qt::IntersectClip);
     }
 
     paintFrame(painter);
