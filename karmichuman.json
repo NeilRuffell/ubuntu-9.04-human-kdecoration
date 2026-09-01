@@ -1,0 +1,15 @@
+{
+    "KPlugin": {
+        "Id": "org.kde.karmichuman",
+        "Name": "Ubuntu 9.04 Human",
+        "Description": "Native KDecoration3 recreation of Ubuntu 9.04 Human",
+        "ServiceTypes": [
+            "org.kde.kdecoration3"
+        ],
+        "EnabledByDefault": true
+    },
+    "org.kde.kdecoration3": {
+        "blur": false,
+        "recommendedBorderSize": "Normal"
+    }
+}
