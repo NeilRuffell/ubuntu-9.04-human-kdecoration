@@ -36,7 +36,7 @@ from Ubuntu's old-releases archive.
 This repository does **not** bundle the original Human PNG assets. Run:
 
 ```bash
-./fetch-jaunty-assets.sh
+bash fetch-jaunty-assets.sh
 ```
 
 The script downloads the original Ubuntu package and extracts only the eight 10x10 Metacity button images required by this decoration.
@@ -54,7 +54,7 @@ sudo dnf install -y \
 ## Build
 
 ```bash
-./fetch-jaunty-assets.sh
+bash fetch-jaunty-assets.sh
 
 cmake -S . -B build -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
