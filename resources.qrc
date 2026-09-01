@@ -1,0 +1,12 @@
+<RCC>
+  <qresource prefix="/human">
+    <file alias="icon_close.png">assets/icon_close.png</file>
+    <file alias="icon_close_u.png">assets/icon_close_u.png</file>
+    <file alias="icon_minimize.png">assets/icon_minimize.png</file>
+    <file alias="icon_minimize_u.png">assets/icon_minimize_u.png</file>
+    <file alias="icon_maximize.png">assets/icon_maximize.png</file>
+    <file alias="icon_maximize_u.png">assets/icon_maximize_u.png</file>
+    <file alias="icon_restore.png">assets/icon_restore.png</file>
+    <file alias="icon_restore_u.png">assets/icon_restore_u.png</file>
+  </qresource>
+</RCC>
