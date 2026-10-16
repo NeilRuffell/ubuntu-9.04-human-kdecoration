@@ -17,7 +17,7 @@ include(KDECMakeSettings)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui)
 find_package(KF6CoreAddons REQUIRED)
-find_package(KF6 REQUIRED COMPONENTS ColorScheme)
+find_package(KF6 REQUIRED COMPONENTS ColorScheme GuiAddons)
 find_package(KDecoration3 REQUIRED)
 
 add_library(karmichuman MODULE
@@ -30,6 +30,7 @@ target_link_libraries(karmichuman PRIVATE
     Qt6::Gui
     KF6::CoreAddons
     KF6::ColorScheme
+    KF6::GuiAddons
     KDecoration3::KDecoration
 )
 
