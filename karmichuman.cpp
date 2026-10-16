@@ -5,6 +5,8 @@
 #include <KDecoration3/DecorationSettings>
 
 #include <KPluginFactory>
+#include <KColorScheme>
+#include <KColorUtils>
 
 #include <QColor>
 #include <QFont>
@@ -44,6 +46,17 @@ static QColor decorationColor(const DecoratedWindow *window,
         return window->palette().color(QPalette::Inactive, QPalette::Window);
     }
     return window->color(group, role);
+}
+
+// Oxygen liboxygen/oxygenhelper.cpp (Plasma/6.8): calcLightColor and
+// highThreshold, without Oxygen's colour cache. Used for contrast passes.
+static QColor oxygenLightColor(const QColor &base)
+{
+    const QColor lighter = KColorScheme::shade(base, KColorScheme::LightShade, 0.5);
+    const bool highThreshold = KColorUtils::luma(lighter) < KColorUtils::luma(base);
+    return highThreshold ? base
+                         : KColorScheme::shade(base, KColorScheme::LightShade,
+                                               KColorScheme::contrastF());
 }
 
 static void rgbToHls(double &r, double &g, double &b)
@@ -647,7 +660,7 @@ void Button::paint(QPainter *painter,
             QPainter contrastPainter(&contrastImage);
             contrastPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
             contrastPainter.fillRect(contrastImage.rect(),
-                palette.color(QPalette::Active, QPalette::Light));
+                oxygenLightColor(base));
             contrastPainter.end();
             painter->drawImage(target.translated(0, 1.0), contrastImage);
         }
@@ -1092,7 +1105,7 @@ void Decoration::paintTitleBar(QPainter *p)
     } else {
         // Oxygen's title renderer paints a light offset contrast pass
         // behind its foreground text. Preserve Human's text placement.
-        p->setPen(window()->palette().color(QPalette::Active, QPalette::Light));
+        p->setPen(oxygenLightColor(NormalBg));
         p->drawText(textRect.translated(0, 1),
                     Qt::AlignCenter | Qt::TextSingleLine, caption);
         p->setPen(NormalFg);
