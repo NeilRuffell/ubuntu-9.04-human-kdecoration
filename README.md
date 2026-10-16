@@ -16,7 +16,7 @@ The implementation is based on the original Ubuntu 9.04 Human theme definition f
 
 ## KDE colour-scheme integration
 
-On the `ubuntu-neon-support` branch, KWin supplies the effective Qt palette: active titlebar uses the scheme's highlight/accent colour, inactive titlebar and frames use window background colours, and text uses matching foreground colours. The original Human gradients, shading, button borders, stepped corners and icon silhouettes are retained. The eight original PNG files still provide icon alpha masks; their glyph pixels are tinted dynamically with the KDE scheme foreground colour. Changes to KWin's palette trigger a decoration repaint. Unlike KWin's dedicated Header/WM decoration colours, this maps directly to scheme window and highlight colours.
+On the `ubuntu-neon-support` branch, KWin supplies active and inactive titlebar colours, frame colour, and title text colours. The original Human gradients, shading, button borders, stepped corners and icon silhouettes are retained. The eight original PNG files still provide icon alpha masks; their glyph pixels are tinted dynamically with the KDE scheme foreground colour. Changes to KWin's palette trigger a decoration repaint.
 
 This is **colour-scheme mode by default**, not a separate option, and it has **not yet been compiled or visually validated on KDE neon**. The original hardcoded Human palette remains available on `main` until this change is verified and merged.
 
