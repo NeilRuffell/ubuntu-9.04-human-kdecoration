@@ -16,9 +16,11 @@ The implementation is based on the original Ubuntu 9.04 Human theme definition f
 
 ## KDE colour-scheme integration
 
-On the `ubuntu-neon-support` branch, KWin supplies active and inactive titlebar colours, frame colour, and title text colours. The original Human gradients, shading, button borders, stepped corners and icon silhouettes are retained. The eight original PNG files still provide icon alpha masks; their glyph pixels are tinted dynamically with the KDE scheme foreground colour. Changes to KWin's palette trigger a decoration repaint.
+On the `ubuntu-neon-support` branch, the active titlebar and active text use KWin's native decoration colours. The inactive titlebar and frame use the KDE window background, with the original Ubuntu Human gradients preserved.
 
-This is **colour-scheme mode by default**, not a separate option, and it has **not yet been compiled or visually validated on KDE neon**. The original hardcoded Human palette remains available on `main` until this change is verified and merged.
+Following the established Plasma 6.8 Oxygen palette pairings, inactive title text uses the disabled `WindowText` role, and inactive button symbols use disabled `ButtonText` with the inactive `Button` background. The original PNGs remain alpha masks for the glyphs, and the original Human button gradients and bevels remain intact. Light contrast underlays are calculated from their corresponding backgrounds, following Oxygen's approach. Palette-change notifications trigger a redraw.
+
+This is **colour-scheme mode by default**, not a separate option. Earlier iterations were compiled and installed successfully on KDE neon, but **this latest palette-pairing patch has not yet been compiled or visually validated**. The original fixed Human palette remains available on `main` until this branch is verified and merged.
 
 ## Status
 
