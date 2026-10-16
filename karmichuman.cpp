@@ -637,8 +637,9 @@ void Button::paint(QPainter *painter,
         image = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
         QPainter tint(&image);
         tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        // Oxygen Plasma/6.8: in window-colour mode, inactive symbols
-        // use Disabled/ButtonText; active symbols use Active/ButtonText.
+        // As in Oxygen, use the title foreground for active symbols;
+        // in window-colour mode use the disabled window foreground for
+        // inactive symbols against the matching inactive titlebar.
         const QPalette palette = d->window()->palette();
         const QColor glyphColor = active
             ? decorationColor(d->window(), KDecoration3::ColorGroup::Active,
@@ -653,9 +654,9 @@ void Button::paint(QPainter *painter,
             10.0);
 
         // Oxygen draws a light, offset contrast pass before its icon.
-        // Reuse the original Human alpha mask for that pass.
+        // Reuse the original Human alpha mask for both active and inactive.
         QImage contrastImage(resource);
-        if (!active && !contrastImage.isNull()) {
+        if (!contrastImage.isNull()) {
             contrastImage = contrastImage.convertToFormat(QImage::Format_ARGB32_Premultiplied);
             QPainter contrastPainter(&contrastImage);
             contrastPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
