@@ -660,7 +660,15 @@ bool Decoration::init()
     connect(window(),
             &DecoratedWindow::paletteChanged,
             this,
-            [this]() { update(); });
+            [this]() {
+                update();
+                // Button glyphs are tinted using the same palette. Explicitly
+                // invalidate them as well as the decoration background.
+                for (auto *button : m_leftButtons->buttons())
+                    button->update();
+                for (auto *button : m_rightButtons->buttons())
+                    button->update();
+            });
 
     connect(settings().get(),
             &KDecoration3::DecorationSettings::decorationButtonsLeftChanged,
@@ -781,8 +789,10 @@ QRectF Decoration::captionRect() const
 
 void Decoration::paintFrame(QPainter *p)
 {
-    const QColor NormalBg = decorationColor(window(),
-        KDecoration3::ColorGroup::Inactive, KDecoration3::ColorRole::Frame);
+    const auto group = window()->isActive() ? KDecoration3::ColorGroup::Active
+                                            : KDecoration3::ColorGroup::Inactive;
+    const QColor NormalBg = decorationColor(window(), group,
+                                             KDecoration3::ColorRole::Frame);
     const QRectF r = rect();
     const int w = qRound(r.width());
     const int h = qRound(r.height());
