@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 
 namespace KarmicHuman
 {
@@ -48,17 +49,14 @@ static QColor decorationColor(const DecoratedWindow *window,
     return window->color(group, role);
 }
 
-// Match Oxygen Plasma/6.8's colour-source pairings while retaining
-// Human's titlebar gradients and historical button glyph geometry.
-// Active: KWin decoration colours (Oxygen's non-window-colour mode).
-// Inactive: Qt window/button palette (Oxygen's window-colour mode).
+// Oxygen Plasma/6.8 defaults UseWindowColors=true. Keep its active
+// WindowText / disabled WindowText pair; actual readability against Human's
+// two-stage gradients is verified by readableForeground() below.
 static QColor titleTextColor(const DecoratedWindow *window, bool active)
 {
-    if (active) {
-        return window->color(KDecoration3::ColorGroup::Active,
-                             KDecoration3::ColorRole::Foreground);
-    }
-    return window->palette().color(QPalette::Disabled, QPalette::WindowText);
+    const QPalette palette = window->palette();
+    return palette.color(active ? QPalette::Active : QPalette::Disabled,
+                         QPalette::WindowText);
 }
 
 static QColor buttonBaseColor(const DecoratedWindow *window, bool active)
@@ -72,10 +70,9 @@ static QColor buttonBaseColor(const DecoratedWindow *window, bool active)
 
 static QColor buttonTextColor(const DecoratedWindow *window, bool active)
 {
-    if (active) {
-        return titleTextColor(window, true);
-    }
-    return window->palette().color(QPalette::Disabled, QPalette::ButtonText);
+    const QPalette palette = window->palette();
+    return palette.color(active ? QPalette::Active : QPalette::Disabled,
+                         QPalette::ButtonText);
 }
 
 // Oxygen liboxygen/oxygenhelper.cpp (Plasma/6.8): calcLightColor and
@@ -185,6 +182,44 @@ static QColor shade(const QColor &input, double factor)
         std::clamp(l, 0.0, 1.0),
         std::clamp(s, 0.0, 1.0),
         input.alphaF());
+}
+
+// KF6 GuiAddons provides the WCAG contrast-ratio calculation. Check every
+// gradient stop: checking only the base colour misses dark Human bevels.
+// The palette role remains authoritative when it is readable. If it is
+// not, try the related KDE foreground, then whichever neutral has the
+// stronger contrast. Text uses 4.5:1; window-control glyphs use 3:1.
+static QColor readableForeground(const QColor &preferred,
+                                 const QColor &alternative,
+                                 const QColor &background,
+                                 std::initializer_list<double> shadeFactors,
+                                 qreal requiredContrast)
+{
+    const auto minimumContrast = [&](const QColor &foreground) {
+        if (!foreground.isValid() || !background.isValid())
+            return qreal(0);
+        qreal ratio = 100.0;
+        for (double factor : shadeFactors) {
+            ratio = std::min(ratio,
+                             KColorUtils::contrastRatio(foreground,
+                                                        shade(background, factor)));
+        }
+        return ratio;
+    };
+
+    QColor best = preferred;
+    qreal bestRatio = minimumContrast(best);
+    if (bestRatio >= requiredContrast)
+        return best;
+
+    for (const QColor &candidate : {alternative, QColor(Qt::black), QColor(Qt::white)}) {
+        const qreal ratio = minimumContrast(candidate);
+        if (ratio > bestRatio) {
+            best = candidate;
+            bestRatio = ratio;
+        }
+    }
+    return best;
 }
 
 static QColor blend(const QColor &bg,
@@ -663,9 +698,31 @@ void Button::paint(QPainter *painter,
         image = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
         QPainter tint(&image);
         tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        // Oxygen's palette foreground: inactive ButtonText pairs with
-        // inactive Button; active mode follows KWin decoration foreground.
-        const QColor glyphColor = buttonTextColor(d->window(), active);
+        // Oxygen's ButtonText roles, contrasted against the *actual*
+        // four Human button-gradient stops for this button state.
+        const QColor preferred = buttonTextColor(d->window(), active);
+        const QColor alternative = active
+            ? d->window()->color(KDecoration3::ColorGroup::Active,
+                                 KDecoration3::ColorRole::Foreground)
+            : d->window()->palette().color(QPalette::Inactive,
+                                           QPalette::ButtonText);
+        const QColor glyphColor = active
+            ? (isPressed()
+                ? readableForeground(preferred, alternative, base,
+                                     {1.15, 0.75, 0.70, 0.75}, 3.0)
+                : isHovered()
+                    ? readableForeground(preferred, alternative, base,
+                                         {1.45, 1.05, 0.95, 1.05}, 3.0)
+                    : readableForeground(preferred, alternative, base,
+                                         {1.35, 0.95, 0.90, 0.95}, 3.0))
+            : (isPressed()
+                ? readableForeground(preferred, alternative, base,
+                                     {0.76, 0.75, 0.73, 0.75}, 3.0)
+                : isHovered()
+                    ? readableForeground(preferred, alternative, base,
+                                         {1.30, 1.10, 1.05, 1.10}, 3.0)
+                    : readableForeground(preferred, alternative, base,
+                                         {1.10, 1.00, 0.98, 1.00}, 3.0));
         tint.fillRect(image.rect(), glyphColor);
         tint.end();
         const QRectF target(
@@ -901,8 +958,17 @@ void Decoration::paintTitleBar(QPainter *p)
         KDecoration3::ColorGroup::Inactive, KDecoration3::ColorRole::TitleBar);
     const QColor SelectedBg = decorationColor(window(),
         KDecoration3::ColorGroup::Active, KDecoration3::ColorRole::TitleBar);
-    const QColor NormalFg = titleTextColor(window(), false);
-    const QColor ActiveFg = titleTextColor(window(), true);
+    // Preserve KDE's foreground roles when readable; otherwise select
+    // a contrasting colour for Human's actual titlebar gradient stops.
+    const QColor NormalFg = readableForeground(
+        titleTextColor(window(), false),
+        window()->palette().color(QPalette::Inactive, QPalette::WindowText),
+        NormalBg, {1.05, 1.00, 0.99, 1.00}, 4.5);
+    const QColor ActiveFg = readableForeground(
+        titleTextColor(window(), true),
+        window()->color(KDecoration3::ColorGroup::Active,
+                        KDecoration3::ColorRole::Foreground),
+        SelectedBg, {1.30, 1.00, 0.97, 1.10}, 4.5);
     const int w = qRound(size().width());
     const int h = qRound(TitleHeight);
     const int half = h / 2;
