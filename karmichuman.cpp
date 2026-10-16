@@ -48,6 +48,36 @@ static QColor decorationColor(const DecoratedWindow *window,
     return window->color(group, role);
 }
 
+// Match Oxygen Plasma/6.8's colour-source pairings while retaining
+// Human's titlebar gradients and historical button glyph geometry.
+// Active: KWin decoration colours (Oxygen's non-window-colour mode).
+// Inactive: Qt window/button palette (Oxygen's window-colour mode).
+static QColor titleTextColor(const DecoratedWindow *window, bool active)
+{
+    if (active) {
+        return window->color(KDecoration3::ColorGroup::Active,
+                             KDecoration3::ColorRole::Foreground);
+    }
+    return window->palette().color(QPalette::Disabled, QPalette::WindowText);
+}
+
+static QColor buttonBaseColor(const DecoratedWindow *window, bool active)
+{
+    if (active) {
+        return window->color(KDecoration3::ColorGroup::Active,
+                             KDecoration3::ColorRole::TitleBar);
+    }
+    return window->palette().color(QPalette::Inactive, QPalette::Button);
+}
+
+static QColor buttonTextColor(const DecoratedWindow *window, bool active)
+{
+    if (active) {
+        return titleTextColor(window, true);
+    }
+    return window->palette().color(QPalette::Disabled, QPalette::ButtonText);
+}
+
 // Oxygen liboxygen/oxygenhelper.cpp (Plasma/6.8): calcLightColor and
 // highThreshold, without Oxygen's colour cache. Used for contrast passes.
 static QColor oxygenLightColor(const QColor &base)
@@ -585,11 +615,7 @@ void Button::paint(QPainter *painter,
         return;
     }
 
-    const auto group = active ? KDecoration3::ColorGroup::Active
-                              : KDecoration3::ColorGroup::Inactive;
-    // Match the inactive button base to the inactive Human titlebar.
-    const QColor base = decorationColor(d->window(), group,
-                                        KDecoration3::ColorRole::TitleBar);
+    const QColor base = buttonBaseColor(d->window(), active);
     paintButtonBackground(
         painter,
         r,
@@ -637,14 +663,9 @@ void Button::paint(QPainter *painter,
         image = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
         QPainter tint(&image);
         tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        // As in Oxygen, use the title foreground for active symbols;
-        // in window-colour mode use the disabled window foreground for
-        // inactive symbols against the matching inactive titlebar.
-        const QPalette palette = d->window()->palette();
-        const QColor glyphColor = active
-            ? decorationColor(d->window(), KDecoration3::ColorGroup::Active,
-                              KDecoration3::ColorRole::Foreground)
-            : palette.color(QPalette::Disabled, QPalette::WindowText);
+        // Oxygen's palette foreground: inactive ButtonText pairs with
+        // inactive Button; active mode follows KWin decoration foreground.
+        const QColor glyphColor = buttonTextColor(d->window(), active);
         tint.fillRect(image.rect(), glyphColor);
         tint.end();
         const QRectF target(
@@ -880,11 +901,8 @@ void Decoration::paintTitleBar(QPainter *p)
         KDecoration3::ColorGroup::Inactive, KDecoration3::ColorRole::TitleBar);
     const QColor SelectedBg = decorationColor(window(),
         KDecoration3::ColorGroup::Active, KDecoration3::ColorRole::TitleBar);
-    // Oxygen Plasma/6.8 uses Disabled/WindowText with window colours.
-    const QColor NormalFg = window()->palette().color(
-        QPalette::Disabled, QPalette::WindowText);
-    const QColor ActiveFg = decorationColor(window(),
-        KDecoration3::ColorGroup::Active, KDecoration3::ColorRole::Foreground);
+    const QColor NormalFg = titleTextColor(window(), false);
+    const QColor ActiveFg = titleTextColor(window(), true);
     const int w = qRound(size().width());
     const int h = qRound(TitleHeight);
     const int half = h / 2;
