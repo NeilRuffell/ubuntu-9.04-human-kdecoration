@@ -587,6 +587,7 @@ void Button::paint(QPainter *painter,
 
     const auto group = active ? KDecoration3::ColorGroup::Active
                               : KDecoration3::ColorGroup::Inactive;
+    // Match the inactive button base to the inactive Human titlebar.
     const QColor base = decorationColor(d->window(), group,
                                         KDecoration3::ColorRole::TitleBar);
     paintButtonBackground(
@@ -642,7 +643,7 @@ void Button::paint(QPainter *painter,
         const QColor glyphColor = active
             ? decorationColor(d->window(), KDecoration3::ColorGroup::Active,
                               KDecoration3::ColorRole::Foreground)
-            : palette.color(QPalette::Disabled, QPalette::ButtonText);
+            : palette.color(QPalette::Disabled, QPalette::WindowText);
         tint.fillRect(image.rect(), glyphColor);
         tint.end();
         const QRectF target(
@@ -653,7 +654,6 @@ void Button::paint(QPainter *painter,
 
         // Oxygen draws a light, offset contrast pass before its icon.
         // Reuse the original Human alpha mask for that pass.
-        const QPalette palette = d->window()->palette();
         QImage contrastImage(resource);
         if (!active && !contrastImage.isNull()) {
             contrastImage = contrastImage.convertToFormat(QImage::Format_ARGB32_Premultiplied);
