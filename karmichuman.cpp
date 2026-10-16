@@ -54,6 +54,17 @@ static QColor decorationColor(const DecoratedWindow *window,
     return window->color(group, role);
 }
 
+// Retain the previous KDE-aware button backgrounds. Human's original
+// hover and pressed gradients are applied to these colours downstream.
+static QColor buttonBaseColor(const DecoratedWindow *window, bool active)
+{
+    if (active) {
+        return window->color(KDecoration3::ColorGroup::Active,
+                             KDecoration3::ColorRole::TitleBar);
+    }
+    return window->palette().color(QPalette::Inactive, QPalette::Button);
+}
+
 // Oxygen liboxygen/oxygenhelper.cpp (Plasma/6.8): calcLightColor and
 // highThreshold, without Oxygen's colour cache. Used for contrast passes.
 static QColor oxygenLightColor(const QColor &base)
