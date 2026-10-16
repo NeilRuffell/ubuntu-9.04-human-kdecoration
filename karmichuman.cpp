@@ -12,6 +12,7 @@
 #include <QImage>
 #include <QLinearGradient>
 #include <QPainter>
+#include <QPalette>
 #include <QPixmap>
 #include <QRegion>
 
@@ -31,11 +32,27 @@ static constexpr qreal ButtonHeight = 24.0;
 static constexpr qreal ButtonWidth = 26.0;
 
 // KWin supplies decoration colours from the active KDE colour scheme.
+// Use the application's effective palette supplied by KWin. In contrast
+// to the decoration-specific Header/WM roles, these colours track the main
+// window and accent colours of the selected Plasma colour scheme.
 static QColor decorationColor(const DecoratedWindow *window,
                               KDecoration3::ColorGroup group,
                               KDecoration3::ColorRole role)
 {
-    return window->color(group, role);
+    const QPalette palette = window->palette();
+    const bool active = group == KDecoration3::ColorGroup::Active;
+    switch (role) {
+    case KDecoration3::ColorRole::TitleBar:
+        return active ? palette.color(QPalette::Active, QPalette::Highlight)
+                      : palette.color(QPalette::Inactive, QPalette::Window);
+    case KDecoration3::ColorRole::Frame:
+        return palette.color(active ? QPalette::Active : QPalette::Inactive,
+                             QPalette::Window);
+    case KDecoration3::ColorRole::Foreground:
+        return active ? palette.color(QPalette::Active, QPalette::HighlightedText)
+                      : palette.color(QPalette::Inactive, QPalette::WindowText);
+    }
+    return QColor();
 }
 
 static void rgbToHls(double &r, double &g, double &b)
