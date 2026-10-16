@@ -27,13 +27,20 @@ remain unchanged. Button backgrounds continue to use the active KWin
 titlebar or the inactive KDE Button palette role, with the original
 Human button shading applied.
 
-Only **caption text and PNG button-symbol foregrounds** use the original
-Ubuntu Human foreground identities: white `#FFFFFF` for active controls
-and dark `#101010` for inactive controls, checked against the *actual*
-KDE-coloured Human gradient. When that original foreground is insufficiently
-readable, the code chooses the better-contrasting one of these two Human
-foreground colours using KDE's `KColorUtils::contrastRatio()`. It does not
-replace the titlebar or button backgrounds with fixed Ubuntu browns/beiges.
+**Focused windows:** The original Human white caption with its four-pass
+Metacity shadow is always retained. Original focused PNG artwork is drawn
+without recolouring and without additional Oxygen-style offset copies.
+
+**Inactive windows:** Human's original dark caption and PNG artwork are
+retained over light backgrounds. When the KDE window/button background is
+dark enough to reduce legibility, the inactive caption uses Human white
+and the original inactive PNG silhouette is tinted white. Contrast is
+evaluated against the original Human inactive gradient stops using
+`KColorUtils::contrastRatio()`.
+
+**No titlebar, frame, or button background colour override was introduced
+by this foreground correction.** Oxygen provided a contrast-checking API
+reference only; its button and text appearance is not reproduced.
 
 Historical Human foreground reference:
 [Original Human GTK 2 gtkrc](https://github.com/luigifab/human-theme/blob/master/src/Human/gtk-2.0/gtkrc).
