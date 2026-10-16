@@ -14,7 +14,7 @@ The Ubuntu package names below are confirmed for **Ubuntu 26.04**. KDE neon pack
 sudo apt update
 sudo apt install --no-install-recommends \
   build-essential cmake ninja-build extra-cmake-modules \
-  qt6-base-dev libkf6coreaddons-dev libkf6colorscheme-dev libkdecorations3-dev \
+  qt6-base-dev libkf6coreaddons-dev libkf6colorscheme-dev libkf6guiaddons-dev libkdecorations3-dev \
   curl binutils
 ```
 
