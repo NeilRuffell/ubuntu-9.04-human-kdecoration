@@ -5,7 +5,6 @@
 #include <KDecoration3/DecorationSettings>
 
 #include <KPluginFactory>
-#include <KColorScheme>
 #include <KColorUtils>
 
 #include <QColor>
@@ -63,17 +62,6 @@ static QColor buttonBaseColor(const DecoratedWindow *window, bool active)
                              KDecoration3::ColorRole::TitleBar);
     }
     return window->palette().color(QPalette::Inactive, QPalette::Button);
-}
-
-// Oxygen liboxygen/oxygenhelper.cpp (Plasma/6.8): calcLightColor and
-// highThreshold, without Oxygen's colour cache. Used for contrast passes.
-static QColor oxygenLightColor(const QColor &base)
-{
-    const QColor lighter = KColorScheme::shade(base, KColorScheme::LightShade, 0.5);
-    const bool highThreshold = KColorUtils::luma(lighter) < KColorUtils::luma(base);
-    return highThreshold ? base
-                         : KColorScheme::shade(base, KColorScheme::LightShade,
-                                               KColorScheme::contrastF());
 }
 
 static void rgbToHls(double &r, double &g, double &b)
@@ -174,16 +162,13 @@ static QColor shade(const QColor &input, double factor)
         input.alphaF());
 }
 
-// Preserve Human's white active / dark inactive glyphs and captions,
-// selecting the other original Human foreground only when it is more
-// legible over the current KDE-coloured Human gradient.
-static QColor humanForeground(const QColor &background,
-                              std::initializer_list<double> shadeFactors,
-                              qreal requiredContrast,
-                              bool active)
+// The inactive Human foreground is dark on a light normal background.
+// Dark KDE window backgrounds use the original Human white foreground.
+// KColorUtils is used for comparison only; it never supplies colours.
+static QColor inactiveHumanForeground(const QColor &background,
+                                      std::initializer_list<double> shadeFactors,
+                                      qreal requiredContrast)
 {
-    const QColor preferred = active ? HumanSelectedFg : HumanNormalFg;
-    const QColor alternative = active ? HumanNormalFg : HumanSelectedFg;
     const auto minimumContrast = [&](const QColor &foreground) {
         qreal ratio = 100.0;
         for (double factor : shadeFactors) {
@@ -194,11 +179,10 @@ static QColor humanForeground(const QColor &background,
         return ratio;
     };
 
-    const qreal preferredRatio = minimumContrast(preferred);
-    if (preferredRatio >= requiredContrast
-        || preferredRatio >= minimumContrast(alternative))
-        return preferred;
-    return alternative;
+    const qreal darkRatio = minimumContrast(HumanNormalFg);
+    const qreal lightRatio = minimumContrast(HumanSelectedFg);
+    return (darkRatio >= requiredContrast || darkRatio >= lightRatio)
+        ? HumanNormalFg : HumanSelectedFg;
 }
 
 static QColor blend(const QColor &bg,
@@ -670,49 +654,35 @@ void Button::paint(QPainter *painter,
     }
 
     QImage image(resource);
+    if (image.isNull())
+        return;
 
-    if (!image.isNull()) {
-        // Retain the exact original silhouette/alpha, but recolour the glyph
-        // with the scheme foreground colour instead of its static PNG RGB.
-        image = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
-        QPainter tint(&image);
-        tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        // Preserve Human's white-active/dark-inactive foreground identity,
-        // switching between the two only if the actual Human button gradient
-        // demands contrast. Never change the background palette here.
-        const QColor glyphColor = active
-            ? (isPressed()
-                ? humanForeground(base, {1.15, 0.75, 0.70, 0.75}, 3.0, true)
-                : isHovered()
-                    ? humanForeground(base, {1.45, 1.05, 0.95, 1.05}, 3.0, true)
-                    : humanForeground(base, {1.35, 0.95, 0.90, 0.95}, 3.0, true))
-            : (isPressed()
-                ? humanForeground(base, {0.76, 0.75, 0.73, 0.75}, 3.0, false)
-                : isHovered()
-                    ? humanForeground(base, {1.30, 1.10, 1.05, 1.10}, 3.0, false)
-                    : humanForeground(base, {1.10, 1.00, 0.98, 1.00}, 3.0, false));
-        tint.fillRect(image.rect(), glyphColor);
-        tint.end();
-        const QRectF target(
-            r.x() + (r.width() - 10.0) / 2.0,
-            r.y() + (r.height() - 10.0) / 2.0,
-            10.0,
-            10.0);
-
-        // Oxygen draws a light, offset contrast pass before its icon.
-        // Reuse the original Human alpha mask for both active and inactive.
-        QImage contrastImage(resource);
-        if (!contrastImage.isNull()) {
-            contrastImage = contrastImage.convertToFormat(QImage::Format_ARGB32_Premultiplied);
-            QPainter contrastPainter(&contrastImage);
-            contrastPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-            contrastPainter.fillRect(contrastImage.rect(),
-                oxygenLightColor(base));
-            contrastPainter.end();
-            painter->drawImage(target.translated(0, 1.0), contrastImage);
+    // The original Human PNG contains the original glyph's pixel artwork.
+    // Do not tint focused buttons or add an Oxygen-style offset copy:
+    // both operations destroyed the authentic focused Human appearance.
+    //
+    // For a dark inactive KDE palette only, reuse the original alpha
+    // silhouette with white pixels so the controls remain visible.
+    if (!active) {
+        const QColor glyphColor = isPressed()
+            ? inactiveHumanForeground(base, {0.76, 0.75, 0.73, 0.75}, 3.0)
+            : isHovered()
+                ? inactiveHumanForeground(base, {1.30, 1.10, 1.05, 1.10}, 3.0)
+                : inactiveHumanForeground(base, {1.10, 1.00, 0.98, 1.00}, 3.0);
+        if (glyphColor == HumanSelectedFg) {
+            image = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+            QPainter tint(&image);
+            tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
+            tint.fillRect(image.rect(), HumanSelectedFg);
         }
-        painter->drawImage(target, image);
     }
+
+    const QRectF target(
+        r.x() + (r.width() - 10.0) / 2.0,
+        r.y() + (r.height() - 10.0) / 2.0,
+        10.0,
+        10.0);
+    painter->drawImage(target, image);
 }
 
 bool Decoration::init()
@@ -926,10 +896,11 @@ void Decoration::paintTitleBar(QPainter *p)
         KDecoration3::ColorGroup::Inactive, KDecoration3::ColorRole::TitleBar);
     const QColor SelectedBg = decorationColor(window(),
         KDecoration3::ColorGroup::Active, KDecoration3::ColorRole::TitleBar);
-    const QColor NormalFg = humanForeground(
-        NormalBg, {1.05, 1.00, 0.99, 1.00}, 4.5, false);
-    const QColor ActiveFg = humanForeground(
-        SelectedBg, {1.30, 1.00, 0.97, 1.10}, 4.5, true);
+    const QColor NormalFg = inactiveHumanForeground(
+        NormalBg, {1.05, 1.00, 0.99, 1.00}, 4.5);
+    // Metacity Human paints the focused title in white over four shadow
+    // passes. It must not turn black when the KDE titlebar is light blue.
+    const QColor ActiveFg = HumanSelectedFg;
     const int w = qRound(size().width());
     const int h = qRound(TitleHeight);
     const int half = h / 2;
@@ -1149,11 +1120,7 @@ void Decoration::paintTitleBar(QPainter *p)
             caption);
 
     } else {
-        // Oxygen's title renderer paints a light offset contrast pass
-        // behind its foreground text. Preserve Human's text placement.
-        p->setPen(oxygenLightColor(NormalBg));
-        p->drawText(textRect.translated(0, 1),
-                    Qt::AlignCenter | Qt::TextSingleLine, caption);
+        // Original Human's inactive caption is a single foreground pass.
         p->setPen(NormalFg);
         p->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, caption);
     }
