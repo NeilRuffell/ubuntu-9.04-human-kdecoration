@@ -623,8 +623,14 @@ void Button::paint(QPainter *painter,
         image = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
         QPainter tint(&image);
         tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        tint.fillRect(image.rect(), decorationColor(d->window(), group,
-                           KDecoration3::ColorRole::Foreground));
+        // Oxygen Plasma/6.8: in window-colour mode, inactive symbols
+        // use Disabled/ButtonText; active symbols use Active/ButtonText.
+        const QPalette palette = d->window()->palette();
+        const QColor glyphColor = active
+            ? decorationColor(d->window(), KDecoration3::ColorGroup::Active,
+                              KDecoration3::ColorRole::Foreground)
+            : palette.color(QPalette::Disabled, QPalette::ButtonText);
+        tint.fillRect(image.rect(), glyphColor);
         tint.end();
         const QRectF target(
             r.x() + (r.width() - 10.0) / 2.0,
@@ -632,6 +638,19 @@ void Button::paint(QPainter *painter,
             10.0,
             10.0);
 
+        // Oxygen draws a light, offset contrast pass before its icon.
+        // Reuse the original Human alpha mask for that pass.
+        const QPalette palette = d->window()->palette();
+        QImage contrastImage(resource);
+        if (!contrastImage.isNull()) {
+            contrastImage = contrastImage.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+            QPainter contrastPainter(&contrastImage);
+            contrastPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+            contrastPainter.fillRect(contrastImage.rect(),
+                palette.color(QPalette::Active, QPalette::Light));
+            contrastPainter.end();
+            painter->drawImage(target.translated(0, 1.0), contrastImage);
+        }
         painter->drawImage(target, image);
     }
 }
@@ -847,8 +866,9 @@ void Decoration::paintTitleBar(QPainter *p)
         KDecoration3::ColorGroup::Inactive, KDecoration3::ColorRole::TitleBar);
     const QColor SelectedBg = decorationColor(window(),
         KDecoration3::ColorGroup::Active, KDecoration3::ColorRole::TitleBar);
-    const QColor NormalFg = decorationColor(window(),
-        KDecoration3::ColorGroup::Inactive, KDecoration3::ColorRole::Foreground);
+    // Oxygen Plasma/6.8 uses Disabled/WindowText with window colours.
+    const QColor NormalFg = window()->palette().color(
+        QPalette::Disabled, QPalette::WindowText);
     const QColor ActiveFg = decorationColor(window(),
         KDecoration3::ColorGroup::Active, KDecoration3::ColorRole::Foreground);
     const int w = qRound(size().width());
@@ -1070,12 +1090,13 @@ void Decoration::paintTitleBar(QPainter *p)
             caption);
 
     } else {
+        // Oxygen's title renderer paints a light offset contrast pass
+        // behind its foreground text. Preserve Human's text placement.
+        p->setPen(window()->palette().color(QPalette::Active, QPalette::Light));
+        p->drawText(textRect.translated(0, 1),
+                    Qt::AlignCenter | Qt::TextSingleLine, caption);
         p->setPen(NormalFg);
-
-        p->drawText(
-            textRect,
-            Qt::AlignCenter | Qt::TextSingleLine,
-            caption);
+        p->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, caption);
     }
 
     m_leftButtons->paint(p, QRectF(0, 0, w, h));
