@@ -642,7 +642,7 @@ void Button::paint(QPainter *painter,
         // Reuse the original Human alpha mask for that pass.
         const QPalette palette = d->window()->palette();
         QImage contrastImage(resource);
-        if (!contrastImage.isNull()) {
+        if (!active && !contrastImage.isNull()) {
             contrastImage = contrastImage.convertToFormat(QImage::Format_ARGB32_Premultiplied);
             QPainter contrastPainter(&contrastImage);
             contrastPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
