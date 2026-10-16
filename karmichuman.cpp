@@ -5,6 +5,7 @@
 #include <KDecoration3/DecorationSettings>
 
 #include <KPluginFactory>
+#include <KColorUtils>
 
 #include <QColor>
 #include <QFont>
@@ -12,11 +13,13 @@
 #include <QImage>
 #include <QLinearGradient>
 #include <QPainter>
+#include <QPalette>
 #include <QPixmap>
 #include <QRegion>
 
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 
 namespace KarmicHuman
 {
@@ -30,9 +33,36 @@ static constexpr qreal TitleEdge = 4.0;
 static constexpr qreal ButtonHeight = 24.0;
 static constexpr qreal ButtonWidth = 26.0;
 
-static const QColor NormalBg("#E6DDD5");
-static const QColor SelectedBg("#8F5F4A");
-static const QColor NormalFg("#101010");
+// Keep Human's original foreground identities without overriding KWin's
+// titlebar or frame colours. Original GTK selected_fg=#FFFFFF, fg=#101010.
+static const QColor HumanNormalFg("#101010");
+static const QColor HumanSelectedFg("#FFFFFF");
+
+// KWin supplies decoration colours from the active KDE colour scheme.
+static QColor decorationColor(const DecoratedWindow *window,
+                              KDecoration3::ColorGroup group,
+                              KDecoration3::ColorRole role)
+{
+    // Match Human's gtk:bg[NORMAL] basis for inactive decorations.
+    // Preserve the original shading and gradient operations.
+    if (group == KDecoration3::ColorGroup::Inactive
+        && (role == KDecoration3::ColorRole::TitleBar
+            || role == KDecoration3::ColorRole::Frame)) {
+        return window->palette().color(QPalette::Inactive, QPalette::Window);
+    }
+    return window->color(group, role);
+}
+
+// Retain the previous KDE-aware button backgrounds. Human's original
+// hover and pressed gradients are applied to these colours downstream.
+static QColor buttonBaseColor(const DecoratedWindow *window, bool active)
+{
+    if (active) {
+        return window->color(KDecoration3::ColorGroup::Active,
+                             KDecoration3::ColorRole::TitleBar);
+    }
+    return window->palette().color(QPalette::Inactive, QPalette::Button);
+}
 
 static void rgbToHls(double &r, double &g, double &b)
 {
@@ -132,6 +162,29 @@ static QColor shade(const QColor &input, double factor)
         input.alphaF());
 }
 
+// The inactive Human foreground is dark on a light normal background.
+// Dark KDE window backgrounds use the original Human white foreground.
+// KColorUtils is used for comparison only; it never supplies colours.
+static QColor inactiveHumanForeground(const QColor &background,
+                                      std::initializer_list<double> shadeFactors,
+                                      qreal requiredContrast)
+{
+    const auto minimumContrast = [&](const QColor &foreground) {
+        qreal ratio = 100.0;
+        for (double factor : shadeFactors) {
+            ratio = std::min(ratio,
+                             KColorUtils::contrastRatio(foreground,
+                                                        shade(background, factor)));
+        }
+        return ratio;
+    };
+
+    const qreal darkRatio = minimumContrast(HumanNormalFg);
+    const qreal lightRatio = minimumContrast(HumanSelectedFg);
+    return (darkRatio >= requiredContrast || darkRatio >= lightRatio)
+        ? HumanNormalFg : HumanSelectedFg;
+}
+
 static QColor blend(const QColor &bg,
                     const QColor &fg,
                     double alpha)
@@ -195,7 +248,8 @@ static QRegion humanWindowRegion(int w, int h)
     return region;
 }
 
-static void paintTopCornerDetails(QPainter *p, int w, bool active)
+static void paintTopCornerDetails(QPainter *p, int w, bool active,
+                                  const QColor &NormalBg, const QColor &SelectedBg)
 {
     if (active) {
         /* corners_outline_selected_top */
@@ -243,7 +297,7 @@ static void paintTopCornerDetails(QPainter *p, int w, bool active)
     p->fillRect(QRectF(w - 3, 4, 1, 2), withAlpha(Qt::black, 0.04));
 }
 
-static void paintBottomCornerDetails(QPainter *p, int w, int h)
+static void paintBottomCornerDetails(QPainter *p, int w, int h, const QColor &NormalBg)
 {
     /* corners_outline_bottom */
     pixelLine(p, shade(NormalBg, 0.95), 4, h - 3, 1, h - 3);
@@ -448,14 +502,13 @@ static void paintButtonBackground(QPainter *p,
                                   const QRectF &r,
                                   bool active,
                                   bool hovered,
-                                  bool pressed)
+                                  bool pressed,
+                                  const QColor &base)
 {
     double a;
     double b;
     double c;
     double d;
-
-    const QColor base = active ? SelectedBg : NormalBg;
 
     if (active) {
         if (pressed) {
@@ -560,12 +613,14 @@ void Button::paint(QPainter *painter,
         return;
     }
 
+    const QColor base = buttonBaseColor(d->window(), active);
     paintButtonBackground(
         painter,
         r,
         active,
         isHovered(),
-        isPressed());
+        isPressed(),
+        base);
 
     QString resource;
 
@@ -598,17 +653,36 @@ void Button::paint(QPainter *painter,
         return;
     }
 
-    const QImage image(resource);
+    QImage image(resource);
+    if (image.isNull())
+        return;
 
-    if (!image.isNull()) {
-        const QRectF target(
-            r.x() + (r.width() - 10.0) / 2.0,
-            r.y() + (r.height() - 10.0) / 2.0,
-            10.0,
-            10.0);
-
-        painter->drawImage(target, image);
+    // The original Human PNG contains the original glyph's pixel artwork.
+    // Do not tint focused buttons or add an Oxygen-style offset copy:
+    // both operations destroyed the authentic focused Human appearance.
+    //
+    // For a dark inactive KDE palette only, reuse the original alpha
+    // silhouette with white pixels so the controls remain visible.
+    if (!active) {
+        const QColor glyphColor = isPressed()
+            ? inactiveHumanForeground(base, {0.76, 0.75, 0.73, 0.75}, 3.0)
+            : isHovered()
+                ? inactiveHumanForeground(base, {1.30, 1.10, 1.05, 1.10}, 3.0)
+                : inactiveHumanForeground(base, {1.10, 1.00, 0.98, 1.00}, 3.0);
+        if (glyphColor == HumanSelectedFg) {
+            image = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+            QPainter tint(&image);
+            tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
+            tint.fillRect(image.rect(), HumanSelectedFg);
+        }
     }
+
+    const QRectF target(
+        r.x() + (r.width() - 10.0) / 2.0,
+        r.y() + (r.height() - 10.0) / 2.0,
+        10.0,
+        10.0);
+    painter->drawImage(target, image);
 }
 
 bool Decoration::init()
@@ -639,6 +713,19 @@ bool Decoration::init()
             &DecoratedWindow::iconChanged,
             this,
             [this]() { update(titleBar()); });
+
+    connect(window(),
+            &DecoratedWindow::paletteChanged,
+            this,
+            [this]() {
+                update();
+                // Button glyphs are tinted using the same palette. Explicitly
+                // invalidate them as well as the decoration background.
+                for (auto *button : m_leftButtons->buttons())
+                    button->update();
+                for (auto *button : m_rightButtons->buttons())
+                    button->update();
+            });
 
     connect(settings().get(),
             &KDecoration3::DecorationSettings::decorationButtonsLeftChanged,
@@ -759,6 +846,10 @@ QRectF Decoration::captionRect() const
 
 void Decoration::paintFrame(QPainter *p)
 {
+    const auto group = window()->isActive() ? KDecoration3::ColorGroup::Active
+                                            : KDecoration3::ColorGroup::Inactive;
+    const QColor NormalBg = decorationColor(window(), group,
+                                             KDecoration3::ColorRole::Frame);
     const QRectF r = rect();
     const int w = qRound(r.width());
     const int h = qRound(r.height());
@@ -796,11 +887,20 @@ void Decoration::paintFrame(QPainter *p)
     p->setBrush(Qt::NoBrush);
     p->drawRect(QRectF(0, 0, w - 1, h - 1));
 
-    paintBottomCornerDetails(p, w, h);
+    paintBottomCornerDetails(p, w, h, NormalBg);
 }
 
 void Decoration::paintTitleBar(QPainter *p)
 {
+    const QColor NormalBg = decorationColor(window(),
+        KDecoration3::ColorGroup::Inactive, KDecoration3::ColorRole::TitleBar);
+    const QColor SelectedBg = decorationColor(window(),
+        KDecoration3::ColorGroup::Active, KDecoration3::ColorRole::TitleBar);
+    const QColor NormalFg = inactiveHumanForeground(
+        NormalBg, {1.05, 1.00, 0.99, 1.00}, 4.5);
+    // Metacity Human paints the focused title in white over four shadow
+    // passes. It must not turn black when the KDE titlebar is light blue.
+    const QColor ActiveFg = HumanSelectedFg;
     const int w = qRound(size().width());
     const int h = qRound(TitleHeight);
     const int half = h / 2;
@@ -970,7 +1070,7 @@ void Decoration::paintTitleBar(QPainter *p)
     }
 
     if (!maximized)
-        paintTopCornerDetails(p, w, active);
+        paintTopCornerDetails(p, w, active, NormalBg, SelectedBg);
 
     if (maximized) {
         pixelLine(
@@ -1013,23 +1113,16 @@ void Decoration::paintTitleBar(QPainter *p)
             Qt::AlignCenter | Qt::TextSingleLine,
             caption);
 
-        p->setPen(Qt::white);
+        p->setPen(ActiveFg);
         p->drawText(
             textRect,
             Qt::AlignCenter | Qt::TextSingleLine,
             caption);
 
     } else {
-        p->setPen(
-            blend(
-                NormalFg,
-                NormalBg,
-                1.20));
-
-        p->drawText(
-            textRect,
-            Qt::AlignCenter | Qt::TextSingleLine,
-            caption);
+        // Original Human's inactive caption is a single foreground pass.
+        p->setPen(NormalFg);
+        p->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, caption);
     }
 
     m_leftButtons->paint(p, QRectF(0, 0, w, h));

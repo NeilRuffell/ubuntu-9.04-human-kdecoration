@@ -14,6 +14,41 @@ The implementation is based on the original Ubuntu 9.04 Human theme definition f
 - application icon as the menu button
 - maximized-window geometry
 
+## KDE colour integration and Human foreground appearance
+
+**Titlebars and frames follow the KDE colour scheme.** The active titlebar
+continues to use KWin's active decoration titlebar colour; the inactive
+titlebar and frame use the KDE window background. This behaviour was
+already established before the Human foreground work and was deliberately
+restored after an incorrect temporary hardcoded-colour change.
+
+The original Human Metacity gradient, bevel, corner and button geometry
+remain unchanged. Button backgrounds continue to use the active KWin
+titlebar or the inactive KDE Button palette role, with the original
+Human button shading applied.
+
+**Focused windows:** The original Human white caption with its four-pass
+Metacity shadow is always retained. Original focused PNG artwork is drawn
+without recolouring and without additional Oxygen-style offset copies.
+
+**Inactive windows:** Human's original dark caption and PNG artwork are
+retained over light backgrounds. When the KDE window/button background is
+dark enough to reduce legibility, the inactive caption uses Human white
+and the original inactive PNG silhouette is tinted white. Contrast is
+evaluated against the original Human inactive gradient stops using
+`KColorUtils::contrastRatio()`.
+
+**No titlebar, frame, or button background colour override was introduced
+by this foreground correction.** Oxygen provided a contrast-checking API
+reference only; its button and text appearance is not reproduced.
+
+Historical Human foreground reference:
+[Original Human GTK 2 gtkrc](https://github.com/luigifab/human-theme/blob/master/src/Human/gtk-2.0/gtkrc).
+
+**Latest foreground fix has not yet been rebuilt or visually verified on
+KDE neon.** Log out and back in after installing a new binary if KWin
+continues to use the earlier decoration.
+
 ## Status
 
 The decoration builds and links as a KDecoration3 plugin.
