@@ -30,9 +30,13 @@ static constexpr qreal TitleEdge = 4.0;
 static constexpr qreal ButtonHeight = 24.0;
 static constexpr qreal ButtonWidth = 26.0;
 
-static const QColor NormalBg("#E6DDD5");
-static const QColor SelectedBg("#8F5F4A");
-static const QColor NormalFg("#101010");
+// KWin supplies decoration colours from the active KDE colour scheme.
+static QColor decorationColor(const DecoratedWindow *window,
+                              KDecoration3::ColorGroup group,
+                              KDecoration3::ColorRole role)
+{
+    return window->color(group, role);
+}
 
 static void rgbToHls(double &r, double &g, double &b)
 {
@@ -195,7 +199,8 @@ static QRegion humanWindowRegion(int w, int h)
     return region;
 }
 
-static void paintTopCornerDetails(QPainter *p, int w, bool active)
+static void paintTopCornerDetails(QPainter *p, int w, bool active,
+                                  const QColor &NormalBg, const QColor &SelectedBg)
 {
     if (active) {
         /* corners_outline_selected_top */
@@ -243,7 +248,7 @@ static void paintTopCornerDetails(QPainter *p, int w, bool active)
     p->fillRect(QRectF(w - 3, 4, 1, 2), withAlpha(Qt::black, 0.04));
 }
 
-static void paintBottomCornerDetails(QPainter *p, int w, int h)
+static void paintBottomCornerDetails(QPainter *p, int w, int h, const QColor &NormalBg)
 {
     /* corners_outline_bottom */
     pixelLine(p, shade(NormalBg, 0.95), 4, h - 3, 1, h - 3);
@@ -448,14 +453,13 @@ static void paintButtonBackground(QPainter *p,
                                   const QRectF &r,
                                   bool active,
                                   bool hovered,
-                                  bool pressed)
+                                  bool pressed,
+                                  const QColor &base)
 {
     double a;
     double b;
     double c;
     double d;
-
-    const QColor base = active ? SelectedBg : NormalBg;
 
     if (active) {
         if (pressed) {
@@ -560,12 +564,17 @@ void Button::paint(QPainter *painter,
         return;
     }
 
+    const auto group = active ? KDecoration3::ColorGroup::Active
+                              : KDecoration3::ColorGroup::Inactive;
+    const QColor base = decorationColor(d->window(), group,
+                                        KDecoration3::ColorRole::TitleBar);
     paintButtonBackground(
         painter,
         r,
         active,
         isHovered(),
-        isPressed());
+        isPressed(),
+        base);
 
     QString resource;
 
@@ -598,9 +607,17 @@ void Button::paint(QPainter *painter,
         return;
     }
 
-    const QImage image(resource);
+    QImage image(resource);
 
     if (!image.isNull()) {
+        // Retain the exact original silhouette/alpha, but recolour the glyph
+        // with the scheme foreground colour instead of its static PNG RGB.
+        image = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        QPainter tint(&image);
+        tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        tint.fillRect(image.rect(), decorationColor(d->window(), group,
+                           KDecoration3::ColorRole::Foreground));
+        tint.end();
         const QRectF target(
             r.x() + (r.width() - 10.0) / 2.0,
             r.y() + (r.height() - 10.0) / 2.0,
@@ -639,6 +656,11 @@ bool Decoration::init()
             &DecoratedWindow::iconChanged,
             this,
             [this]() { update(titleBar()); });
+
+    connect(window(),
+            &DecoratedWindow::paletteChanged,
+            this,
+            [this]() { update(); });
 
     connect(settings().get(),
             &KDecoration3::DecorationSettings::decorationButtonsLeftChanged,
@@ -759,6 +781,8 @@ QRectF Decoration::captionRect() const
 
 void Decoration::paintFrame(QPainter *p)
 {
+    const QColor NormalBg = decorationColor(window(),
+        KDecoration3::ColorGroup::Inactive, KDecoration3::ColorRole::Frame);
     const QRectF r = rect();
     const int w = qRound(r.width());
     const int h = qRound(r.height());
@@ -796,11 +820,19 @@ void Decoration::paintFrame(QPainter *p)
     p->setBrush(Qt::NoBrush);
     p->drawRect(QRectF(0, 0, w - 1, h - 1));
 
-    paintBottomCornerDetails(p, w, h);
+    paintBottomCornerDetails(p, w, h, NormalBg);
 }
 
 void Decoration::paintTitleBar(QPainter *p)
 {
+    const QColor NormalBg = decorationColor(window(),
+        KDecoration3::ColorGroup::Inactive, KDecoration3::ColorRole::TitleBar);
+    const QColor SelectedBg = decorationColor(window(),
+        KDecoration3::ColorGroup::Active, KDecoration3::ColorRole::TitleBar);
+    const QColor NormalFg = decorationColor(window(),
+        KDecoration3::ColorGroup::Inactive, KDecoration3::ColorRole::Foreground);
+    const QColor ActiveFg = decorationColor(window(),
+        KDecoration3::ColorGroup::Active, KDecoration3::ColorRole::Foreground);
     const int w = qRound(size().width());
     const int h = qRound(TitleHeight);
     const int half = h / 2;
@@ -970,7 +1002,7 @@ void Decoration::paintTitleBar(QPainter *p)
     }
 
     if (!maximized)
-        paintTopCornerDetails(p, w, active);
+        paintTopCornerDetails(p, w, active, NormalBg, SelectedBg);
 
     if (maximized) {
         pixelLine(
@@ -1013,18 +1045,14 @@ void Decoration::paintTitleBar(QPainter *p)
             Qt::AlignCenter | Qt::TextSingleLine,
             caption);
 
-        p->setPen(Qt::white);
+        p->setPen(ActiveFg);
         p->drawText(
             textRect,
             Qt::AlignCenter | Qt::TextSingleLine,
             caption);
 
     } else {
-        p->setPen(
-            blend(
-                NormalFg,
-                NormalBg,
-                1.20));
+        p->setPen(NormalFg);
 
         p->drawText(
             textRect,
