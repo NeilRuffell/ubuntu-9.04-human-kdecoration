@@ -18,9 +18,11 @@ The implementation is based on the original Ubuntu 9.04 Human theme definition f
 
 On the `ubuntu-neon-support` branch, the active titlebar and active text use KWin's native decoration colours. The inactive titlebar and frame use the KDE window background, with the original Ubuntu Human gradients preserved.
 
-Following the established Plasma 6.8 Oxygen palette pairings, inactive title text uses the disabled `WindowText` role, and inactive button symbols use disabled `ButtonText` with the inactive `Button` background. The original PNGs remain alpha masks for the glyphs, and the original Human button gradients and bevels remain intact. Light contrast underlays are calculated from their corresponding backgrounds, following Oxygen's approach. Palette-change notifications trigger a redraw.
+Following Plasma 6.8 Oxygen's default `UseWindowColors=true` behaviour, active/inactive title text uses the active/disabled `WindowText` palette roles, and active/inactive button symbols use active/disabled `ButtonText`. Human's active titlebar continues to use KWin's active decoration colour, while inactive titlebar and frame colours follow the KDE window background. Original Human button gradients and bevels remain unchanged, and the original PNGs remain alpha masks for their symbols.
 
-This is **colour-scheme mode by default**, not a separate option. Earlier iterations were compiled and installed successfully on KDE neon, but **this latest palette-pairing patch has not yet been compiled or visually validated**. The original fixed Human palette remains available on `main` until this branch is verified and merged.
+**Contrast safety:** Because Human's titlebar and button gradients are not always based on the same background colours as Oxygen, `KColorUtils::contrastRatio()` checks all four applicable gradient stops. If the chosen palette foreground falls below 4.5:1 for title text or 3:1 for button glyphs, the renderer compares the corresponding alternative KDE foreground and then black/white, selecting a better-contrasting colour. This preserves Oxygen's palette-first behaviour while avoiding the colour-pairing mismatch introduced by Human's original gradients. Oxygen-derived light contrast underlays remain. Palette-change notifications trigger redraws.
+
+This is **colour-scheme mode by default**, not a separate option. Earlier iterations were compiled and installed successfully on KDE neon, but **this latest contrast-safety patch has not yet been compiled or visually validated**. The original fixed Human palette remains available on `main` until this branch is verified and merged.
 
 ## Status
 
