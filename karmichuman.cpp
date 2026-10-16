@@ -12,6 +12,7 @@
 #include <QImage>
 #include <QLinearGradient>
 #include <QPainter>
+#include <QPalette>
 #include <QPixmap>
 #include <QRegion>
 
@@ -35,6 +36,13 @@ static QColor decorationColor(const DecoratedWindow *window,
                               KDecoration3::ColorGroup group,
                               KDecoration3::ColorRole role)
 {
+    // Match Human's gtk:bg[NORMAL] basis for inactive decorations.
+    // Preserve the original shading and gradient operations.
+    if (group == KDecoration3::ColorGroup::Inactive
+        && (role == KDecoration3::ColorRole::TitleBar
+            || role == KDecoration3::ColorRole::Frame)) {
+        return window->palette().color(QPalette::Inactive, QPalette::Window);
+    }
     return window->color(group, role);
 }
 
