@@ -14,15 +14,41 @@ The implementation is based on the original Ubuntu 9.04 Human theme definition f
 - application icon as the menu button
 - maximized-window geometry
 
-## KDE colour-scheme integration
+## Human colour fidelity and KDE integration
 
-On the `ubuntu-neon-support` branch, the active titlebar and active text use KWin's native decoration colours. The inactive titlebar and frame use the KDE window background, with the original Ubuntu Human gradients preserved.
+The colour values for this port come from Ubuntu's original Human GTK 2
+`gtk_color_scheme`, **not from Oxygen**:
 
-Following Plasma 6.8 Oxygen's default `UseWindowColors=true` behaviour, active/inactive title text uses the active/disabled `WindowText` palette roles, and active/inactive button symbols use active/disabled `ButtonText`. Human's active titlebar continues to use KWin's active decoration colour, while inactive titlebar and frame colours follow the KDE window background. Original Human button gradients and bevels remain unchanged, and the original PNGs remain alpha masks for their symbols.
+| Human GTK colour | Original value | Usage |
+|---|---|---|
+| `selected_bg_color` | `#8F5F4A` | Brown focused titlebar and focused button bases |
+| `selected_fg_color` | `#FFFFFF` | White focused title and window-control symbols |
+| `bg_color` | `#E6DDD5` | Beige focused frame; fallback for inactive background |
+| `fg_color` | `#101010` | Dark inactive caption and button symbols |
 
-**Contrast safety:** Because Human's titlebar and button gradients are not always based on the same background colours as Oxygen, `KColorUtils::contrastRatio()` checks all four applicable gradient stops. If the chosen palette foreground falls below 4.5:1 for title text or 3:1 for button glyphs, the renderer compares the corresponding alternative KDE foreground and then black/white, selecting a better-contrasting colour. This preserves Oxygen's palette-first behaviour while avoiding the colour-pairing mismatch introduced by Human's original gradients. Oxygen-derived light contrast underlays remain. Palette-change notifications trigger redraws.
+Original colour reference: [Human GTK 2 gtkrc](https://github.com/luigifab/human-theme/blob/master/src/Human/gtk-2.0/gtkrc).
 
-This is **colour-scheme mode by default**, not a separate option. Earlier iterations were compiled and installed successfully on KDE neon, but **this latest contrast-safety patch has not yet been compiled or visually validated**. The original fixed Human palette remains available on `main` until this branch is verified and merged.
+The inactive titlebar, inactive buttons, and inactive frame deliberately use KDE's
+`QPalette::Inactive / Window` base instead of always using beige. This is the
+previously requested KDE-style integration: inactive decoration colours visually
+follow the window background, **with both original Human inactive gradients
+unchanged**.
+
+**Oxygen 6.8 supplies contrast-handling techniques, not Human's colours.**
+`KColorUtils::contrastRatio()` determines whether original Human `#101010`
+will remain legible against inactive background gradient stops. If white
+provides better contrast and the dark foreground falls below the threshold,
+the inactive text and button glyphs use Human's original `#FFFFFF` instead.
+Focused buttons and caption always retain Human's white foreground on brown.
+
+The original PNG files remain the sources of the window-control silhouettes.
+Human's gradients, bevels, pixel corner geometry, and four-pass focused title
+shadow remain in place. The existing Oxygen-derived contrast pass is still
+computed from the Human button background; it does not supply a replacement
+accent or button colour.
+
+The colour-fidelity change was committed to `ubuntu-neon-support` but
+**has not yet been built or visually verified on KDE neon**.
 
 ## Status
 
