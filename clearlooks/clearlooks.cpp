@@ -130,7 +130,8 @@ public:
 
         const bool active = decoration()->window()->isActive();
         const QColor base = active ? ActiveBlue : InactiveGrey;
-        const QRectF face = geometry().adjusted(1.5, 2.5, -1.5, -2.5);
+        const qreal spacing = decoration()->settings()->smallSpacing();
+        const QRectF face = geometry().adjusted(spacing / 2, 2 * spacing, -spacing / 2, -2 * spacing);
         const QColor fill = isHovered() && isEnabled() ? base.lighter(115) : base;
 
         painter->save();
@@ -145,6 +146,8 @@ public:
         painter->drawRoundedRect(face.adjusted(1, 1, -1, -1), 1.5, 1.5);
 
         painter->translate(face.center() + QPointF(0, isPressed() ? 0.75 : 0));
+        const qreal glyphScale = std::max(1.0, face.width() / 18.0);
+        painter->scale(glyphScale, glyphScale);
         const QPainterPath symbol = glyph(type(), isChecked());
         painter->setPen(QPen(active ? base.darker(158) : base.lighter(119),
                               2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
@@ -172,9 +175,8 @@ public:
             -> DecorationButton * {
             if (type == DecorationButtonType::Custom)
                 return nullptr;
-            const qreal height = titleHeight(decoration->settings()->font());
             auto *button = new Button(type, decoration, parent);
-            button->setGeometry(QRectF(0, 0, buttonWidth(type, height), height));
+            button->setGeometry(QRectF(QPointF(), buttonSize(type, *decoration->settings())));
             return button;
         };
 
@@ -192,6 +194,7 @@ public:
         connect(window(), &DecoratedWindow::activeChanged, this, [this] { update(); });
         connect(window(), &DecoratedWindow::captionChanged, this, [this] { update(titleBar()); });
         connect(settings().get(), &DecorationSettings::fontChanged, this, &Decoration::layout);
+        connect(settings().get(), &DecorationSettings::spacingChanged, this, &Decoration::layout);
         connect(settings().get(), &DecorationSettings::borderSizeChanged, this, &Decoration::layout);
         connect(settings().get(), &DecorationSettings::alphaChannelSupportedChanged, this, [this] { update(); });
         layout();
@@ -239,14 +242,22 @@ public:
     }
 
 private:
-    static qreal titleHeight(const QFont &font)
+    static qreal contentHeight(const DecorationSettings &settings)
     {
-        return std::max(23.0, QFontMetricsF(font).height() + 7);
+        // Match Breeze's default control size in logical pixels.
+        return std::max({16.0, QFontMetricsF(settings.font()).height(), 2.0 * settings.gridUnit()});
     }
 
-    static qreal buttonWidth(DecorationButtonType type, qreal height)
+    static qreal titleHeight(const DecorationSettings &settings)
     {
-        return type == DecorationButtonType::Spacer ? 9 : height - 3;
+        return contentHeight(settings) + 4 * settings.smallSpacing();
+    }
+
+    static QSizeF buttonSize(DecorationButtonType type, const DecorationSettings &settings)
+    {
+        const qreal width = type == DecorationButtonType::Spacer
+            ? settings.largeSpacing() / 2.0 : contentHeight(settings) + settings.smallSpacing();
+        return QSizeF(width, titleHeight(settings));
     }
 
     void layout()
@@ -258,14 +269,14 @@ private:
         const bool vertical = window()->isMaximizedVertically();
         const qreal side = horizontal || borderSize == BorderSize::NoSides ? 0 : frame;
         const qreal bottom = vertical ? std::min(frame, 1.0) : frame;
-        const qreal height = titleHeight(settings()->font());
+        const qreal height = titleHeight(*settings());
 
         setBorders(QMarginsF(side, height, side, bottom));
         setResizeOnlyBorders(QMarginsF(horizontal ? 0 : 5, 0, horizontal ? 0 : 5, vertical ? 0 : 5));
 
         for (auto *button : m_left->buttons() + m_right->buttons()) {
             button->setGeometry(QRectF(button->geometry().topLeft(),
-                                       QSizeF(buttonWidth(button->type(), height), height)));
+                                       buttonSize(button->type(), *settings())));
         }
 
         positionButtons();
