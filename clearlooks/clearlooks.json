@@ -1,0 +1,12 @@
+{
+    "KPlugin": {
+        "Name": "Clearlooks",
+        "Description": "Scalable Clearlooks Gummy window decoration",
+        "ServiceTypes": ["org.kde.kdecoration3"],
+        "EnabledByDefault": true
+    },
+    "org.kde.kdecoration3": {
+        "blur": false,
+        "recommendedBorderSize": "Normal"
+    }
+}
