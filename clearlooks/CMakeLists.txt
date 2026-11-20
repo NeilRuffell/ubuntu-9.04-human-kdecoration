@@ -12,7 +12,7 @@ find_package(KF6CoreAddons REQUIRED)
 find_package(KDecoration3 REQUIRED)
 
 add_library(clearlooks MODULE clearlooks.cpp)
-target_compile_features(clearlooks PRIVATE cxx_std_17)
+target_compile_features(clearlooks PRIVATE cxx_std_20)
 target_link_libraries(clearlooks PRIVATE Qt6::Gui KF6::CoreAddons KDecoration3::KDecoration)
 set_target_properties(clearlooks PROPERTIES PREFIX "" OUTPUT_NAME "org.kde.clearlooks")
 
